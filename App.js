@@ -185,3 +185,4 @@ export default function App() {
 
   );
 }
+//https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=Nike%20Air%20Max%20Red&choe=UTF-8%22
