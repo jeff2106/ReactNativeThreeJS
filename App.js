@@ -6,7 +6,8 @@ import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader';
 import { TextureLoader } from 'expo-three';
 import { Gyroscope } from 'expo-sensors';
 import { useAnimatedSensor, SensorType } from 'react-native-reanimated';
-import {Text, View} from "react-native";
+import { BarCodeScanner } from 'expo-barcode-scanner';
+import {Button, StyleSheet, Text, View} from "react-native";
 import {
   Gesture,
   GestureHandlerRootView,
@@ -88,7 +89,9 @@ function Shoe(props) {
 }
 
 export default function App() {
-
+  const [hasPermission, setHasPermission] = useState(null);
+  const [scanned, setScanned] = useState(false);
+  const [scannedVal, setScannedVal] = useState("");
   const [data, setData] = useState({
     "absoluteX": 0,
     "absoluteY": 0,
@@ -103,11 +106,43 @@ export default function App() {
     "x": 0,
     "y": 0
   });
-  const [zoom, setZoom] = useState(10);
+  const [zoom, setZoom] = useState(4);
   const tapGesture = useRef();
   const panGesture = useRef();
+  useEffect(() => {
+    const getBarCodeScannerPermissions = async () => {
+      const { status } = await BarCodeScanner.requestPermissionsAsync();
+      setHasPermission(status === 'granted');
+    };
+
+    getBarCodeScannerPermissions();
+  }, []);
+
+  const handleBarCodeScanned = ({ type, data }) => {
+    if(Donnée.includes(data)){
+      setScanned(true);
+      setScannedVal(data)
+      return
+    }
+    alert(`Nous n'avons pas ce articles : ${data}!`);
+  };
+
+  if (hasPermission === null) {
+    return <Text>Requesting for camera permission</Text>;
+  }
+  if (hasPermission === false) {
+    return <Text>No access to camera</Text>;
+  }
+  const Donnée = ["Nike Air Max"]
+
   return (
     <GestureHandlerRootView style={{flex:1,justifyContent:'center',alignContent:'center'}}>
+      <BarCodeScanner
+          onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
+          style={StyleSheet.absoluteFillObject}
+      />
+      {
+        scanned ?
       <View style={{flex:1,justifyContent:'center',alignContent:'center'}}>
         <PanGestureHandler  onGestureEvent={x => {
           //console.log(x.nativeEvent)
@@ -140,8 +175,12 @@ export default function App() {
             </Canvas>
           </PinchGestureHandler>
         </PanGestureHandler>
-
-      </View>
+          <View style={{position:'absolute',left:'5%',bottom:'3%',right:'5%',backgroundColor:'white',height:150,borderRadius:12,justifyContent:'center',alignContent:'center',alignItems:'center'}}>
+            <Text>{scannedVal.toUpperCase()}</Text>
+            <Button title={'Scanner un autre'} onPress={() => setScanned(false)} />
+          </View>
+      </View> : null
+      }
     </GestureHandlerRootView>
 
   );

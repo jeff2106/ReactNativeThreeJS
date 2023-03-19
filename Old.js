@@ -1,104 +1,122 @@
-import { ExpoWebGLRenderingContext, GLView } from 'expo-gl';
-import { Renderer, TextureLoader, loadAsync } from 'expo-three';
-import * as React from 'react';
+// @ts-nocheck
+import {useEffect, useState,useRef,useLayoutEffect} from "react";
+import {BarCodeScanner} from "expo-barcode-scanner";
+import {Text, View,Button,StyleSheet} from "react-native";
+import * as PropTypes from "prop-types";
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
+import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader';
+import { TextureLoader } from 'expo-three';
 import {
-  AmbientLight,
-  BoxGeometry,
-  Fog,
-  GridHelper,
-  Mesh,
-  MeshStandardMaterial,
-  PerspectiveCamera,
-  PointLight,
-  Scene,
-  SpotLight,
-} from 'three';
+    Gesture,
+    GestureHandlerRootView,
+    PanGestureHandler,
+    PinchGestureHandler,
+    TapGestureHandler
+} from "react-native-gesture-handler";
+import {useFrame, useLoader} from "@react-three/fiber/native";
+
+
+function Shoe(props) {
+    const [base, normal, rough] = useLoader(TextureLoader, [
+        require('./assets/Airmax/textures/BaseColor.jpg'),
+        require('./assets/Airmax/textures/Normal.jpg'),
+        require('./assets/Airmax/textures/Roughness.png'),
+    ]);
+
+    const material = useLoader(MTLLoader, require('./assets/Airmax/shoe.mtl'));
+
+    const obj = useLoader(
+        OBJLoader,
+        require('./assets/Airmax/shoe.obj'),
+        (loader) => {
+            material.preload();
+            loader.setMaterials(material);
+        }
+    );
+
+    const mesh = useRef();
+
+    useLayoutEffect(() => {
+        obj.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+                child.material.map = base;
+                child.material.normalMap = normal;
+                child.material.roughnessMap = rough;
+            }
+        });
+    }, [obj]);
+
+    useFrame((state, delta) => {
+        let { x, y, z,translationX,translationY,velocityX,velocityY,target } = props.PanScrollAble;
+        x = ~~(velocityX * 3) / 20000;
+        y = ~~(velocityY * 3) / 20000;
+        //mesh.current.position.x += x;
+        //mesh.current.position.y += y;
+        mesh.current.rotation.x += x;
+        mesh.current.rotation.y += y;
+    });
+
+    return (
+        <mesh ref={mesh} rotation={[1, 0, 0]}>
+            <primitive object={obj} scale={props.zoom} />
+        </mesh>
+    );
+}
 
 export default function App() {
-  let timeout;
+    const [hasPermission, setHasPermission] = useState(null);
+    const [scanned, setScanned] = useState(false);
+    const [data, setData] = useState({
+        "absoluteX": 0,
+        "absoluteY": 0,
+        "handlerTag": 0,
+        "numberOfPointers": 0,
+        "state": 0,
+        "target": 0,
+        "translationX": 0,
+        "translationY": 0,
+        "velocityX": 0,
+        "velocityY": 0,
+        "x": 0,
+        "y": 0
+    });
+    const [zoom, setZoom] = useState(10);
+    const tapGesture = useRef();
+    const panGesture = useRef();
 
-  React.useEffect(() => {
-    // Clear the animation loop when the component unmounts
-    return () => clearTimeout(timeout);
-  }, []);
-
-  return (
-    <GLView
-      style={{ flex: 1 }}
-      onContextCreate={async (gl: ExpoWebGLRenderingContext) => {
-        const { drawingBufferWidth: width, drawingBufferHeight: height } = gl;
-        const sceneColor = 0x6ad6f0;
-
-        // Create a WebGLRenderer without a DOM element
-        const renderer = new Renderer({ gl });
-        renderer.setSize(width, height);
-        renderer.setClearColor(sceneColor);
-
-        const camera = new PerspectiveCamera(70, width / height, 0.01, 1000);
-        camera.position.set(2, 5, 5);
-
-        const scene = new Scene();
-        scene.fog = new Fog(sceneColor, 1, 10000);
-        scene.add(new GridHelper(10, 10));
-
-        const ambientLight = new AmbientLight(0x101010);
-        scene.add(ambientLight);
-
-        const pointLight = new PointLight(0xffffff, 2, 1000, 1);
-        pointLight.position.set(0, 200, 200);
-        scene.add(pointLight);
-
-        const spotLight = new SpotLight(0xffffff, 0.5);
-        spotLight.position.set(0, 500, 100);
-        spotLight.lookAt(scene.position);
-        scene.add(spotLight);
-
-        // Load and add a texture
-        const cube = new IconMesh();
-        scene.add(cube);
-
-        // Load and add an obj model
-        const model = {
-          '3d.obj': 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/obj/walt/WaltHead.obj',
-          '3d.mtl': 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/obj/walt/WaltHead.mtl'
+    useEffect(() => {
+        const getBarCodeScannerPermissions = async () => {
+            const { status } = await BarCodeScanner.requestPermissionsAsync();
+            setHasPermission(status === 'granted');
         };
 
-        const object = await loadAsync([model['3d.obj'], model['3d.mtl']], null, name => model[name]);
+        getBarCodeScannerPermissions();
+    }, []);
 
-        object.position.y += 2;
-        object.position.z -= 2;
-        object.scale.set(.02, .02, .02);
+    const handleBarCodeScanned = ({ type, data }) => {
+        setScanned(true);
+        alert(`Bar code with type ${type} and data ${data} has been scanned!`);
+    };
 
-        scene.add(object);
-
-        camera.lookAt(cube.position);
-
-        function update() {
-          cube.rotation.y += 0.05;
-          cube.rotation.x += 0.025;
-        }
-
-        // Setup an animation loop
-        const render = () => {
-          timeout = requestAnimationFrame(render);
-          update();
-          renderer.render(scene, camera);
-          gl.endFrameEXP();
-        };
-        render();
-      }}
-    />
-  );
+    if (hasPermission === null) {
+        return <Text>Requesting for camera permission</Text>;
+    }
+    if (hasPermission === false) {
+        return <Text>No access to camera</Text>;
+    }
+    return <View style={styles.container}>
+        <BarCodeScanner
+            onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
+            style={StyleSheet.absoluteFillObject}
+        />
+        {scanned && <Button title={'Tap to Scan Again'} onPress={() => setScanned(false)} />}
+    </View>
 }
 
-class IconMesh extends Mesh {
-  constructor() {
-    super(
-      new BoxGeometry(1.0, 1.0, 1.0),
-      new MeshStandardMaterial({
-        map: new TextureLoader().load(require('./assets/icon.png')),
-        // color: 0xff0000
-      })
-    );
-  }
-}
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        flexDirection: 'column',
+        justifyContent: 'center',
+    },
+});
